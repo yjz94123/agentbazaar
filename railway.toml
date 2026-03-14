@@ -1,0 +1,7 @@
+# This file is used to configure Railway deployments.
+# API service uses: buildCommand override via Railway dashboard
+# Web service uses: buildCommand override via Railway dashboard
+# See DEPLOY.md for details.
+
+[build]
+builder = "NIXPACKS"
