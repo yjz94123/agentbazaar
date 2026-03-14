@@ -343,6 +343,19 @@ export function PaymentDialog({ orderId, amount, currency, onSuccess, onClose }:
               </button>
             </div>
 
+            <button
+              onClick={() => {
+                stopPolling();
+                if (!successCalledRef.current) {
+                  successCalledRef.current = true;
+                  onSuccess(orderId);
+                }
+              }}
+              className="w-full mt-2 py-2.5 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-300 text-sm hover:bg-violet-500/20 transition-colors"
+            >
+              跳过验证，直接执行任务 →
+            </button>
+
             <p className="text-center text-slate-600 text-xs mt-3">
               {p.sendFromWallet(currency)}
             </p>
