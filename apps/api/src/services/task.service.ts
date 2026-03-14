@@ -23,19 +23,25 @@ export const taskService = {
 
     const dynamicPrice = agentService.getDynamicPrice(agent);
 
-    // If orderId provided, check payment
+    // If orderId provided, validate and execute the existing task
     if (orderId) {
       const order = paymentService.getById(orderId);
-      if (!order || !paymentService.isOrderPaid(orderId)) {
+      if (!order) {
+        // Order not found — server may have restarted and lost in-memory state
+        throw new Error('ORDER_SESSION_EXPIRED');
+      }
+      if (!paymentService.isOrderPaid(orderId)) {
         return { status: 402 };
       }
 
       // Find the task associated with this order
       const existingTask = taskDb.findById(order.taskId);
-      if (existingTask) {
-        // Execute the task
-        return this.executeTask(existingTask);
+      if (!existingTask) {
+        // Task was lost (server restart) even though payment confirmed — prevent charging again
+        throw new Error('TASK_SESSION_EXPIRED');
       }
+
+      return this.executeTask(existingTask);
     }
 
     // Create new task
@@ -45,9 +51,13 @@ export const taskService = {
     // If parentTaskId, pull upstream result as input for Report Writer
     if (parentTaskId) {
       const parentTask = taskDb.findById(parentTaskId);
-      if (parentTask?.result) {
-        userInput = JSON.stringify(parentTask.result);
+      if (!parentTask) {
+        throw new Error('Parent task not found');
       }
+      if (!parentTask.result) {
+        throw new Error('Parent task has not completed yet');
+      }
+      userInput = JSON.stringify(parentTask.result);
     }
 
     const task: Task = {

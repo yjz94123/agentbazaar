@@ -35,6 +35,8 @@ export function TaskForm({ agent, taskTypes, parentTaskId }: Props) {
     currency: string;
     chain: string;
   } | null>(null);
+  // Actual dynamic price returned by server (may differ from agent.price base price)
+  const [actualPrice, setActualPrice] = useState<string | null>(null);
 
   const currentType = taskTypes.find((t) => t.id === selectedType);
 
@@ -50,7 +52,8 @@ export function TaskForm({ agent, taskTypes, parentTaskId }: Props) {
       });
 
       if (result._status === 402) {
-        // Show payment dialog
+        // Show payment dialog — use actual amount from server (dynamic pricing may differ from agent.price)
+        setActualPrice(result.amount!);
         setPaymentInfo({
           orderId: result.orderId!,
           taskId: result.taskId!,
@@ -88,6 +91,15 @@ export function TaskForm({ agent, taskTypes, parentTaskId }: Props) {
       if (result._status === 200 && result.data?.taskId) {
         toast.success('Task completed!');
         router.push(`/task/${result.data.taskId}`);
+      } else if (result._status === 410) {
+        const code = (result as { code?: string }).code;
+        if (code === 'ORDER_SESSION_EXPIRED') {
+          toast.error('支付会话已过期（服务器可能已重启），请刷新页面重新发起任务。', { duration: 6000 });
+        } else {
+          toast.error('任务状态已丢失，请联系支持团队。', { duration: 6000 });
+        }
+      } else if (result._status === 422) {
+        toast.error((result as { error?: string }).error ?? '父任务尚未完成，请等待后重试。', { duration: 5000 });
       } else {
         toast.error('Task execution failed');
       }
@@ -142,10 +154,17 @@ export function TaskForm({ agent, taskTypes, parentTaskId }: Props) {
           </div>
         )}
 
-        {/* Price estimate */}
+        {/* Price estimate — show dynamic price if known, otherwise fall back to base price */}
         <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-surface-700/50 border border-white/5 text-sm">
-          <span className="text-slate-400">{tf.estimatedCost}</span>
-          <span className="font-mono font-semibold text-sky-400">{agent.price} {agent.currency}</span>
+          <span className="text-slate-400">
+            {tf.estimatedCost}
+            {actualPrice && actualPrice !== agent.price && (
+              <span className="ml-1 text-xs text-slate-500">(动态定价)</span>
+            )}
+          </span>
+          <span className="font-mono font-semibold text-sky-400">
+            {actualPrice ?? agent.price} {agent.currency}
+          </span>
         </div>
 
         {/* Submit */}

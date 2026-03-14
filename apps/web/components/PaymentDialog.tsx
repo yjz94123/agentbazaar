@@ -52,6 +52,18 @@ export function PaymentDialog({ orderId, amount, currency, onSuccess, onClose }:
   } | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Guard against both manual verify and auto-polling calling onSuccess simultaneously
+  const successCalledRef = useRef(false);
+
+  // Cleanup interval on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, []);
 
   // Auto-initiate when wallet just connected
   useEffect(() => {
@@ -87,10 +99,13 @@ export function PaymentDialog({ orderId, amount, currency, onSuccess, onClose }:
       const result = await paymentsApi.verifyGoat(orderId);
       if (result.confirmed) {
         stopPolling();
-        setConfirmedTxHash(result.txHash);
-        setPaid(true);
-        toast.success('链上支付已确认！');
-        setTimeout(() => onSuccess(orderId), 2000);
+        if (!successCalledRef.current) {
+          successCalledRef.current = true;
+          setConfirmedTxHash(result.txHash);
+          setPaid(true);
+          toast.success('链上支付已确认！');
+          setTimeout(() => onSuccess(orderId), 2000);
+        }
       } else {
         toast(`状态: ${result.goatStatus} — 等待确认`, { icon: '⏳' });
       }
@@ -107,7 +122,8 @@ export function PaymentDialog({ orderId, amount, currency, onSuccess, onClose }:
     pollRef.current = setInterval(async () => {
       try {
         const result = await paymentsApi.verifyGoat(orderId);
-        if (result.confirmed) {
+        if (result.confirmed && !successCalledRef.current) {
+          successCalledRef.current = true;
           stopPolling();
           setConfirmedTxHash(result.txHash);
           setPaid(true);

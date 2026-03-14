@@ -24,6 +24,11 @@ export const paymentController = {
       return;
     }
 
+    if (!/^0x[0-9a-fA-F]{40}$/.test(fromAddress)) {
+      res.status(400).json({ success: false, error: 'Invalid Ethereum address format', code: 'INVALID_ADDRESS' });
+      return;
+    }
+
     try {
       const result = await paymentService.initiateGoatPayment(orderId, fromAddress);
 

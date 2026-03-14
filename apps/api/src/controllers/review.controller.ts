@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { reviewService } from '../services/review.service';
+import { taskDb } from '../db/store';
 
 export const reviewController = {
   create(req: Request, res: Response): void {
@@ -30,6 +31,23 @@ export const reviewController = {
       return;
     }
 
+    const sessionId = (req.headers['x-session-id'] as string) || req.body.sessionId || 'anonymous';
+
+    // Verify the requester owns this task (sessionId must match)
+    const task = taskDb.findById(taskId);
+    if (!task) {
+      res.status(404).json({ success: false, error: 'Task not found', code: 'TASK_NOT_FOUND' });
+      return;
+    }
+    if (task.sessionId !== sessionId) {
+      res.status(403).json({ success: false, error: 'You can only review tasks you submitted', code: 'FORBIDDEN' });
+      return;
+    }
+    if (task.status !== 'completed') {
+      res.status(422).json({ success: false, error: 'Can only review completed tasks', code: 'TASK_NOT_COMPLETED' });
+      return;
+    }
+
     // Idempotency: one review per task
     if (reviewService.existsForTask(taskId)) {
       res.status(409).json({
@@ -40,8 +58,7 @@ export const reviewController = {
       return;
     }
 
-    const reviewerAddress =
-      (req.headers['x-session-id'] as string) || req.body.sessionId || 'anonymous';
+    const reviewerAddress = sessionId;
 
     const review = reviewService.create({
       taskId,

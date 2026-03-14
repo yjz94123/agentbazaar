@@ -1,12 +1,17 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import type { Task, Agent } from '@agentbazaar/shared';
 import { useLang } from '@/contexts/LangContext';
+import { tasksApi } from '@/lib/api';
 import { ResultViewer } from './ResultViewer';
 import { ReviewSection } from './ReviewSection';
 import { ValidationBadge } from './ValidationBadge';
 import { getAgentIcon, getAgentColor, formatDate, formatDuration, getTaskTypeLabel } from '@/lib/utils';
+
+const POLL_INTERVAL_MS = 3000;
+const POLL_STATUSES = new Set(['processing', 'paid', 'created']);
 
 interface Props {
   task: Task;
@@ -14,9 +19,30 @@ interface Props {
   txHash?: string | null;
 }
 
-export function TaskResultContent({ task, agent, txHash }: Props) {
+export function TaskResultContent({ task: initialTask, agent, txHash }: Props) {
   const { t } = useLang();
   const tr = t.taskResult;
+
+  const [task, setTask] = useState(initialTask);
+
+  // Poll for updates while task is in a non-terminal state
+  useEffect(() => {
+    if (!POLL_STATUSES.has(task.status)) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const updated = await tasksApi.getById(task.id);
+        setTask(updated);
+        if (!POLL_STATUSES.has(updated.status)) {
+          clearInterval(interval);
+        }
+      } catch {
+        // ignore transient fetch errors, keep polling
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [task.id, task.status]);
 
   const icon = agent ? getAgentIcon(agent.id) : '🤖';
   const gradientColor = agent ? getAgentColor(agent.id) : 'from-slate-500 to-slate-600';

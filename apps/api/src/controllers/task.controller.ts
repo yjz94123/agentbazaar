@@ -61,6 +61,20 @@ export const taskController = {
       const message = error instanceof Error ? error.message : 'Unknown error';
       if (message === 'Agent not found') {
         res.status(404).json({ success: false, error: message, code: 'AGENT_NOT_FOUND' });
+      } else if (message === 'ORDER_SESSION_EXPIRED') {
+        res.status(410).json({
+          success: false,
+          error: 'Payment session expired (server may have restarted). Please refresh and start a new task.',
+          code: 'ORDER_SESSION_EXPIRED',
+        });
+      } else if (message === 'TASK_SESSION_EXPIRED') {
+        res.status(410).json({
+          success: false,
+          error: 'Task session expired (server may have restarted). Payment was received but task state was lost. Please contact support.',
+          code: 'TASK_SESSION_EXPIRED',
+        });
+      } else if (message === 'Parent task not found' || message === 'Parent task has not completed yet') {
+        res.status(422).json({ success: false, error: message, code: 'PARENT_TASK_UNAVAILABLE' });
       } else {
         res.status(500).json({ success: false, error: message, code: 'INTERNAL_ERROR' });
       }

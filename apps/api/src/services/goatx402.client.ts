@@ -97,10 +97,14 @@ function signRequest(
 
 const MIN_AMOUNT_WEI = 100000; // GOAT x402 minimum: 0.1 USDC
 
-// Convert USDC decimal string to wei (6 decimals), clamped to minimum
+// Convert USDC decimal string to wei (6 decimals), clamped to minimum.
+// Uses integer string arithmetic to avoid floating-point precision errors
+// (e.g. parseFloat('0.15') * 1e6 === 150000.00000000003).
 export function usdcToWei(amount: string): string {
-  const parsed = parseFloat(amount);
-  const wei = Math.round(parsed * 10 ** USDC_DECIMALS);
+  const [intPart = '0', fracPart = ''] = amount.split('.');
+  // Pad or trim fractional part to exactly USDC_DECIMALS digits
+  const paddedFrac = fracPart.padEnd(USDC_DECIMALS, '0').slice(0, USDC_DECIMALS);
+  const wei = parseInt(intPart, 10) * (10 ** USDC_DECIMALS) + parseInt(paddedFrac, 10);
   return Math.max(wei, MIN_AMOUNT_WEI).toString();
 }
 
